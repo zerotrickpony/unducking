@@ -1,10 +1,13 @@
 {
   "devDependencies": {
+    "@types/node": "24.1.0",
+    "csv-parse": "6.1.0",
     "typescript": "5.9.2"
   },
   "scripts": {
     "buildweb": "tsc",
     "buildnode": "tsc -p tsconfig-node.json",
-    "run": "tsc -p tsconfig-node.json && node out/main.js"
+    "run": "tsc -p tsconfig-node.json && node out/main/main.js",
+    "results": "tsc -p tsconfig-tools.json && node out/tools/results.js ~/tmp/unduck*.csv"
   }
 }

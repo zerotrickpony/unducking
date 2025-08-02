@@ -78,14 +78,14 @@ class Main {
       ['runNumFakeWrapper',    async (n: number) => await this.runNumFakeWrapper(n)],
     ];
 
-    console.log(`pass,testName,iterations,durationMs`);
+    const env = getEnvironment();
+    csvlog(`environment`,`testName`,`iterations`,`pass`,`durationMs`);
     for (let i = 0; i < PASSES; i++) {
       for (const [name, fn] of shuffle(fns)) {
         const start = Date.now();
-        //tlog(`Starting: ${name} (${ITERATIONS})`);
         await fn(ITERATIONS);
-        console.log(`${i},"${name}",${ITERATIONS},${Date.now() - start}`);
-        //tlog(`Done    : ${name}`);
+        const end = Date.now();
+        csvlog(`"${env}"`,`"${name}"`,`${ITERATIONS}`,`${i}`,`${end - start}`);
         await sleep(500);
       }
     }
@@ -223,6 +223,15 @@ function tlog(msg: string): void {
   lastTime = now;
 }
 
+function csvlog(...items: string[]): void {
+  if (typeof(window) != 'undefined') {
+    const m = document.getElementById('main') as HTMLTextAreaElement;
+    m.value += items.join(',') + '\n';
+  } else {
+    console.log(items.join(','));
+  }
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise<void>((resolve) => {
     setTimeout(resolve, ms);
@@ -259,6 +268,26 @@ function shuffle<X>(list: X[]): X[] {
     result[j] = t;
   }
   return result;
+}
+
+function getEnvironment() {
+  if (typeof(process) != "undefined") {
+    const version = process?.version ?? '???';
+    const arch = process?.arch ?? '???';
+    const platform = process?.platform ?? '???';
+    return `${platform}-${arch}-node-${version}`;
+
+  } else if (typeof(window) != "undefined") {
+    const t = window.location.hash;
+    const s = 'environment=';
+    if (t.includes(s)) {
+      return `${t.substring(t.indexOf(s) + s.length)}`;
+    } else {
+      return 'browser';
+    }
+  }
+
+  return '???';
 }
 
 const main = new Main();

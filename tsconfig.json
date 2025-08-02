@@ -3,6 +3,7 @@
     "outFile": "web/lib/all.js",
     "target": "es2021",
     "module": "amd",
+    "skipLibCheck": true,
     "noImplicitAny": true,
     "noImplicitReturns": true,
     "removeComments": false,

@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "outDir": "out/main",
+    "outDir": "out/tools",
     "target": "es2021",
     "module": "node16",
     "noImplicitAny": true,
@@ -12,6 +12,6 @@
     "allowSyntheticDefaultImports": true
   },
   "include": [
-    "src/**/*.ts"
+    "tools/**/*.ts"
   ]
 }
