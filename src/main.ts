@@ -69,21 +69,22 @@ class Main {
   }
 
   async runBenchmarks() {
-    const fns: [string, (n: number) => Promise<void>][] = [
-      ['runStringAlias',       async (n: number) => await this.runStringAlias(n)],
-      ['runNumAlias',          async (n: number) => await this.runNumAlias(n)],
-      ['runStringWrapper',     async (n: number) => await this.runStringWrapper(n)],
-      ['runNumWrapper',        async (n: number) => await this.runNumWrapper(n)],
-      ['runStringFakeWrapper', async (n: number) => await this.runStringFakeWrapper(n)],
-      ['runNumFakeWrapper',    async (n: number) => await this.runNumFakeWrapper(n)],
+    const fns: [string, (iterations: number, rng: RNG) => Promise<void>][] = [
+      ['runStringAlias',       async (iterations: number, rng: RNG) => await this.runStringAlias(iterations, rng)],
+      ['runNumAlias',          async (iterations: number, rng: RNG) => await this.runNumAlias(iterations, rng)],
+      ['runStringWrapper',     async (iterations: number, rng: RNG) => await this.runStringWrapper(iterations, rng)],
+      ['runNumWrapper',        async (iterations: number, rng: RNG) => await this.runNumWrapper(iterations, rng)],
+      ['runStringFakeWrapper', async (iterations: number, rng: RNG) => await this.runStringFakeWrapper(iterations, rng)],
+      ['runNumFakeWrapper',    async (iterations: number, rng: RNG) => await this.runNumFakeWrapper(iterations, rng)],
     ];
 
     const env = getEnvironment();
     csvlog(`environment`,`testName`,`iterations`,`pass`,`durationMs`);
     for (let i = 0; i < PASSES; i++) {
+      const rng = new RNG();  // untouched seed, so that each pass is apples-to-apples amongst the algos
       for (const [name, fn] of shuffle(fns)) {
         const start = Date.now();
-        await fn(ITERATIONS);
+        await fn(ITERATIONS, rng.clone());
         const end = Date.now();
         csvlog(`"${env}"`,`"${name}"`,`${ITERATIONS}`,`${i}`,`${end - start}`);
         await sleep(500);
@@ -91,122 +92,122 @@ class Main {
     }
   }
 
-  async runStringAlias(n: number): Promise<void> {
+  async runStringAlias(iterations: number, rng: RNG): Promise<void> {
     const strs = this.someStrings;
     const strns = this.someStrings.length;
     const results: StringAlias[] = [];
 
-    for (let i = 0; i < n; i++) {
-      const s1 = strs[Math.floor(Math.random() * strns)];
-      const s2 = strs[Math.floor(Math.random() * strns)];
+    for (let i = 0; i < iterations; i++) {
+      const s1 = strs[rng.nextUnder(strns)];
+      const s2 = strs[rng.nextUnder(strns)];
       results.push(s1 + s2);
     }
 
     // reprocess the results
     const rlens = results.length;
-    for (let i = 0; i < n; i++) {
-      const s1 = results[Math.floor(Math.random() * rlens)];
-      const s2 = results[Math.floor(Math.random() * rlens)];
+    for (let i = 0; i < iterations; i++) {
+      const s1 = results[rng.nextUnder(rlens)];
+      const s2 = results[rng.nextUnder(rlens)];
       results.push(s1 + s2);
     }
   }
 
-  async runNumAlias(n: number): Promise<void> {
+  async runNumAlias(iterations: number, rng: RNG): Promise<void> {
     const nums = this.someNumbers;
     const numns = this.someNumbers.length;
     const results: NumAlias[] = [];
 
-    for (let i = 0; i < n; i++) {
-      const s1 = nums[Math.floor(Math.random() * numns)];
-      const s2 = nums[Math.floor(Math.random() * numns)];
+    for (let i = 0; i < iterations; i++) {
+      const s1 = nums[rng.nextUnder(numns)];
+      const s2 = nums[rng.nextUnder(numns)];
       results.push(s1 + s2 + s1 * s2);
     }
 
     // reprocess the results
     const rlens = results.length;
-    for (let i = 0; i < n; i++) {
-      const s1 = results[Math.floor(Math.random() * rlens)];
-      const s2 = results[Math.floor(Math.random() * rlens)];
+    for (let i = 0; i < iterations; i++) {
+      const s1 = results[rng.nextUnder(rlens)];
+      const s2 = results[rng.nextUnder(rlens)];
       results.push(s1 + s2 + s1 * s2);
     }
   }
 
-  async runStringWrapper(n: number): Promise<void> {
+  async runStringWrapper(iterations: number, rng: RNG): Promise<void> {
     const strs = this.someStrings;
     const strns = this.someStrings.length;
     const results: StringWrapper[] = [];
 
-    for (let i = 0; i < n; i++) {
-      const s1 = new StringWrapper(strs[Math.floor(Math.random() * strns)]);
-      const s2 = new StringWrapper(strs[Math.floor(Math.random() * strns)]);
+    for (let i = 0; i < iterations; i++) {
+      const s1 = new StringWrapper(strs[rng.nextUnder(strns)]);
+      const s2 = new StringWrapper(strs[rng.nextUnder(strns)]);
       results.push(StringWrapper.concat(s1, s2));
     }
 
     // reprocess the results
     const rlens = results.length;
-    for (let i = 0; i < n; i++) {
-      const s1 = results[Math.floor(Math.random() * rlens)];
-      const s2 = results[Math.floor(Math.random() * rlens)];
+    for (let i = 0; i < iterations; i++) {
+      const s1 = results[rng.nextUnder(rlens)];
+      const s2 = results[rng.nextUnder(rlens)];
       results.push(StringWrapper.concat(s1, s2));
     }
   }
 
-  async runNumWrapper(n: number): Promise<void> {
+  async runNumWrapper(iterations: number, rng: RNG): Promise<void> {
     const nums = this.someNumbers;
     const numns = this.someNumbers.length;
     const results: NumberWrapper[] = [];
 
-    for (let i = 0; i < n; i++) {
-      const s1 = new NumberWrapper(nums[Math.floor(Math.random() * numns)]);
-      const s2 = new NumberWrapper(nums[Math.floor(Math.random() * numns)]);
+    for (let i = 0; i < iterations; i++) {
+      const s1 = new NumberWrapper(nums[rng.nextUnder(numns)]);
+      const s2 = new NumberWrapper(nums[rng.nextUnder(numns)]);
       results.push(NumberWrapper.plustimes(s1, s2));
     }
 
     // reprocess the results
     const rlens = results.length;
-    for (let i = 0; i < n; i++) {
-      const s1 = results[Math.floor(Math.random() * rlens)];
-      const s2 = results[Math.floor(Math.random() * rlens)];
+    for (let i = 0; i < iterations; i++) {
+      const s1 = results[rng.nextUnder(rlens)];
+      const s2 = results[rng.nextUnder(rlens)];
       results.push(NumberWrapper.plustimes(s1, s2));
     }
   }
 
-  async runStringFakeWrapper(n: number): Promise<void> {
+  async runStringFakeWrapper(iterations: number, rng: RNG): Promise<void> {
     const strs = this.someStrings;
     const strns = this.someStrings.length;
     const results: StringFakeWrapper[] = [];
 
-    for (let i = 0; i < n; i++) {
-      const s1 = StringFakeWrapper.from(strs[Math.floor(Math.random() * strns)]);
-      const s2 = StringFakeWrapper.from(strs[Math.floor(Math.random() * strns)]);
+    for (let i = 0; i < iterations; i++) {
+      const s1 = StringFakeWrapper.from(strs[rng.nextUnder(strns)]);
+      const s2 = StringFakeWrapper.from(strs[rng.nextUnder(strns)]);
       results.push(StringFakeWrapper.concat(s1, s2));
     }
 
     // reprocess the results
     const rlens = results.length;
-    for (let i = 0; i < n; i++) {
-      const s1 = results[Math.floor(Math.random() * rlens)];
-      const s2 = results[Math.floor(Math.random() * rlens)];
+    for (let i = 0; i < iterations; i++) {
+      const s1 = results[rng.nextUnder(rlens)];
+      const s2 = results[rng.nextUnder(rlens)];
       results.push(StringFakeWrapper.concat(s1, s2));
     }
   }
 
-  async runNumFakeWrapper(n: number): Promise<void> {
+  async runNumFakeWrapper(iterations: number, rng: RNG): Promise<void> {
     const nums = this.someNumbers;
     const numns = this.someNumbers.length;
     const results: NumberFakeWrapper[] = [];
 
-    for (let i = 0; i < n; i++) {
-      const s1 = NumberFakeWrapper.from(nums[Math.floor(Math.random() * numns)]);
-      const s2 = NumberFakeWrapper.from(nums[Math.floor(Math.random() * numns)]);
+    for (let i = 0; i < iterations; i++) {
+      const s1 = NumberFakeWrapper.from(nums[rng.nextUnder(numns)]);
+      const s2 = NumberFakeWrapper.from(nums[rng.nextUnder(numns)]);
       results.push(NumberFakeWrapper.plustimes(s1, s2));
     }
 
     // reprocess the results
     const rlens = results.length;
-    for (let i = 0; i < n; i++) {
-      const s1 = results[Math.floor(Math.random() * rlens)];
-      const s2 = results[Math.floor(Math.random() * rlens)];
+    for (let i = 0; i < iterations; i++) {
+      const s1 = results[rng.nextUnder(rlens)];
+      const s2 = results[rng.nextUnder(rlens)];
       results.push(NumberFakeWrapper.plustimes(s1, s2));
     }
   }
@@ -288,6 +289,42 @@ function getEnvironment() {
   }
 
   return '???';
+}
+
+class RNG {
+  m: number;
+  a: number;
+  c: number;
+  state: number;
+
+  constructor(seed?: number) {
+    // LCG using GCC's constants
+    this.m = 0x80000000; // 2**31;
+    this.a = 1103515245;
+    this.c = 12345;
+
+    this.state = seed ? seed : Math.floor(Math.random() * (this.m - 1));
+  }
+
+  clone(): RNG {
+    const result = new RNG(this.state);
+    result.m = this.m;
+    result.a = this.a;
+    result.c = this.c;
+    result.state = this.state;
+    return result;
+  }
+
+  nextInt(): number {
+    this.state = (this.a * this.state + this.c) % this.m;
+    return this.state;
+  }
+  nextUnder(max: number): number {
+    // returns in range [0, end): including start, excluding end
+    // can't modulu nextInt because of weak randomness in lower bits
+    const randomUnder1 = this.nextInt() / this.m;
+    return Math.floor(randomUnder1 * max);
+  }
 }
 
 const main = new Main();

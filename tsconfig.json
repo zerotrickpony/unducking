@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "outFile": "web/lib/all.js",
+    "outFile": "web/lib/main.js",
     "target": "es2021",
     "module": "amd",
     "skipLibCheck": true,
