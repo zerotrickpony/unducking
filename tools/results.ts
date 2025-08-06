@@ -3,6 +3,7 @@ import {parse} from 'csv-parse';
 
 const PASSES = 30;
 const T_THRESHOLD = 3.659;  // 99.9% two sided T value at 29 degrees of freedom
+const P_SIMULATIONS = 100000;
 
 interface RawResult {
   environment: string;
@@ -35,6 +36,7 @@ interface CompareStats {
   teststddev: number;  // stddev of testmean
   outliers: number;  // how many points were dropped, if any
   tvalue: number;  // significance of test (T)
+  pvalue: number;  // probability of test mean (pvalue) via recombination method
   sig999: boolean;  // t value is larger than T_THRESHOLD
 }
 
@@ -109,7 +111,6 @@ function summarize(comparisons: Comparison[]): {[key: string]: CompareStats[]} {
       const basistest = cs[0].basistest;
       const basisMs = asum(cs.map(c => c.basisMs));
       const expMs = asum(cs.map(c => c.testMs));
-      // TODO - discard outlier passes before calculating the mean
       const basismean = basisMs / samples;
       const testmean = expMs / samples;
       const basisE2 = asum(cs.map(c => (c.basisMs - basismean) * (c.basisMs - basismean)));
@@ -117,6 +118,7 @@ function summarize(comparisons: Comparison[]): {[key: string]: CompareStats[]} {
       const basisstddev = Math.sqrt(basisE2 / (samples - 1));
       const teststddev = Math.sqrt(expE2 / (samples - 1));
       const tvalue = Math.abs(testmean - basismean) / (teststddev / Math.sqrt(samples));
+      const pvalue = simulatePValue(basismean, testmean, [...cs.map(c => c.basisMs), ...cs.map(c => c.testMs)]);
 
       results[env].push({
         environment: env,
@@ -129,12 +131,37 @@ function summarize(comparisons: Comparison[]): {[key: string]: CompareStats[]} {
         teststddev,
         outliers,
         tvalue,
+        pvalue,
         sig999: tvalue >= T_THRESHOLD
       });
     }
   }
 
   return results;
+}
+
+// Simulate other recombinations of these experimental results and determine how often they result
+function simulatePValue(basisMean: number, testMean: number, samples: number[]): number {
+  const minMeanDiff = Math.abs(basisMean - testMean);
+  let sigCount = 0;
+  let total = 0;
+  for (let i = 0; i < P_SIMULATIONS; i++) {
+    total++;
+    // Randomly draw half the samples into the second group
+    const group1 = [...samples];
+    const group2: number[] = [];
+    while (group1.length > group2.length) {
+      const [item] = group1.splice(Math.floor(Math.random() * (group1.length - 1)), 1);
+      group2.push(item);
+    }
+    if (group1.length != group2.length || group1.length != 30 || group2.length != 30) {
+      throw new Error(`Surprising rebalance failure: ${group1.length}`);
+    }
+    const mean1 = asum(group1) / group1.length;
+    const mean2 = asum(group2) / group2.length;
+    sigCount += Math.abs(mean1 - mean2) >= minMeanDiff ? 1 : 0;
+  }
+  return sigCount / total;
 }
 
 // Drop data points that are beyond 1.5X the interquartile range

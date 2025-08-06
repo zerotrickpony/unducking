@@ -104,7 +104,7 @@ function addDataChart(env, data) {
   summary.setAttribute('class', 'summary');
 
   let html = `<table><tr>
-    <td>test</td><td>Samples</td><td>slowdown</td><td>bmean</td><td>tmean</td><td>bsd</td><td>tsd</td><td>T</td><td>Significant?</td>
+    <td>test</td><td>Samples</td><td>slowdown</td><td>bmean</td><td>tmean</td><td>bsd</td><td>tsd</td><td>T</td><td>P</td><td>Significant?</td>
   </tr>`;
   for (const sd of ALL_STATS[env]) {
     html += `<tr>
@@ -116,6 +116,7 @@ function addDataChart(env, data) {
       <td>${sd.basisstddev.toFixed(3)}</td>
       <td>${sd.teststddev.toFixed(3)}</td>
       <td>${sd.tvalue.toFixed(3)}</td>
+      <td>${sd.pvalue.toFixed(5)}</td>
       <td>${sd.sig999}</td>
     </tr>`;
   }
