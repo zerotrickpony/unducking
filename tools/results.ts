@@ -33,6 +33,7 @@ interface CompareStats {
   testmean: number;  // average milliseconds per test run of runBlahWrapper
   basisstddev: number;  // stddev of basismean
   teststddev: number;  // stddev of testmean
+  outliers: number;  // how many points were dropped, if any
   tvalue: number;  // significance of test (T)
   sig999: boolean;  // t value is larger than T_THRESHOLD
 }
@@ -59,17 +60,20 @@ async function main(argv: string[]) {
     }
   });
 
-  // compare
+  // compare paired results by pass. This is sort of invalid because of ordering effects?
   const comparisons: Comparison[] = [];
   gatherComparisons(comparisons, results, 'runStringAlias', 'runStringFakeWrapper');
   gatherComparisons(comparisons, results, 'runStringAlias', 'runStringWrapper');
   gatherComparisons(comparisons, results, 'runNumAlias', 'runNumFakeWrapper');
   gatherComparisons(comparisons, results, 'runNumAlias', 'runNumWrapper');
 
+  // Statistical summaries of each trial, where we compare means and determine statistical significance
+  const stats = summarize(comparisons);
+
   writeFileSync('./web/lib/resultsdata.js', `
     const ALL_COMPARISONS = ${JSON.stringify(comparisons, null, 2)};
     const ALL_RESULTS = ${JSON.stringify(results, null, 2)};
-    const ALL_STATS = ${JSON.stringify(summarize(comparisons), null, 2)};
+    const ALL_STATS = ${JSON.stringify(stats, null, 2)};
   `);
 }
 
@@ -90,31 +94,40 @@ function summarize(comparisons: Comparison[]): {[key: string]: CompareStats[]} {
   for (const env of environments) {
     results[env] = [];
     for (const exp of experiments) {
-      const cs = comparisons.filter(c => c.environment === env && c.comparetest === exp);
-      if (cs.length != PASSES) {
+      const ocs = comparisons.filter(c => c.environment === env && c.comparetest === exp);
+      // TODO const cs = dropOutliers(ocs);
+      // TODO const outliers = ocs.length - cs.length;
+      const cs = ocs;
+      const outliers = 0;
+      if (ocs.length != PASSES) {
         throw new Error(`Surprising count of passes: ${cs.length}`);
       }
+      if (outliers >= PASSES * 0.25) {
+        throw new Error(`Surprisingly many outliers: ${outliers}`);
+      }
+      const samples = cs.length;
       const basistest = cs[0].basistest;
       const basisMs = asum(cs.map(c => c.basisMs));
       const expMs = asum(cs.map(c => c.testMs));
       // TODO - discard outlier passes before calculating the mean
-      const basismean = basisMs / PASSES;
-      const testmean = expMs / PASSES;
+      const basismean = basisMs / samples;
+      const testmean = expMs / samples;
       const basisE2 = asum(cs.map(c => (c.basisMs - basismean) * (c.basisMs - basismean)));
       const expE2 = asum(cs.map(c => (c.testMs - testmean) * (c.testMs - testmean)));
-      const basisstddev = Math.sqrt(basisE2 / (PASSES - 1));
-      const teststddev = Math.sqrt(expE2 / (PASSES - 1));
-      const tvalue = Math.abs(testmean - basismean) / (teststddev / Math.sqrt(PASSES));
+      const basisstddev = Math.sqrt(basisE2 / (samples - 1));
+      const teststddev = Math.sqrt(expE2 / (samples - 1));
+      const tvalue = Math.abs(testmean - basismean) / (teststddev / Math.sqrt(samples));
 
       results[env].push({
         environment: env,
         basistest,
         comparetest: exp,
-        samples: PASSES,
+        samples,
         basismean,
         testmean,
         basisstddev,
         teststddev,
+        outliers,
         tvalue,
         sig999: tvalue >= T_THRESHOLD
       });
@@ -122,6 +135,22 @@ function summarize(comparisons: Comparison[]): {[key: string]: CompareStats[]} {
   }
 
   return results;
+}
+
+// Drop data points that are beyond 1.5X the interquartile range
+function dropOutliers(comparisons: Comparison[]): Comparison[] {
+  // see https://www.khanacademy.org/math/statistics-probability/summarizing-quantitative-data/box-whisker-plots/v/judging-outliers-in-a-dataset
+  if (comparisons.length != PASSES) {
+    throw new Error(`Surprising pass count: ${comparisons.length}`);
+  }
+  comparisons.sort((a, b) => a.testMs - b.testMs);
+  const p25 = comparisons[Math.floor(PASSES * 0.25)].testMs;
+  const p75 = comparisons[Math.floor(PASSES * 0.75)].testMs;
+  const iqr = p75 - p25;
+  const plo = p25 - iqr * 1.5;
+  const phi = p75 + iqr * 1.5;
+  const result = comparisons.filter(c => (plo <= c.testMs && c.testMs <= phi));
+  return result;
 }
 
 // Compare baseline to test
