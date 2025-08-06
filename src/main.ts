@@ -1,6 +1,6 @@
 // Test construction:
 // - between each pass of each kind of test, we sleep for 500ms to attempt to quiet the VM a bit
-// - each test starts with 20,000 strings of up to 500 chars in length (max < 20MB)
+// - each test starts with 20,000 random strings of up to 500 chars in length (max < 20MB)
 // - we create concatenations of pairs of the test data, and add them to an array
 // - we create an array equal in size to half the source array, made of concatenations (max < 20MB)
 // - we reprocess the same resulting items so that they are part of the working set, concatenating again (max < 40MB)
