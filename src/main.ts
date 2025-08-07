@@ -7,10 +7,13 @@
 // - we discard that array and iterate
 // - we measure the combined duration of performing the above test 1000 times, and consider that one trial
 // - we do 30 passes each of these trials, randomizing the order in which the tests are done in case there is an order effect
+// - memory-pressure inducing versions of these trials are also run by retaining 1M strings (max < 1GB)
 
 const PASSES = 30;
 const TEST_ITERATIONS = 1000;
 const GROW_ITEMS = 20000;
+const GROW_ITEMS_MEM = 1000000;
+const TEST_ITERATIONS_MEM = 30;
 const SRC_STRINGS = 20000;
 const SRC_STRLENS = [3, 500];
 const SRC_NUMBERS = 20000;
@@ -80,38 +83,46 @@ class Main {
   }
 
   async runBenchmarks() {
-    const fns: [string, (rng: RNG) => void][] = [
-      ['runStringAlias',       (rng: RNG) => this.runStringAlias(rng)],
-      ['runNumAlias',          (rng: RNG) => this.runNumAlias(rng)],
-      ['runStringWrapper',     (rng: RNG) => this.runStringWrapper(rng)],
-      ['runNumWrapper',        (rng: RNG) => this.runNumWrapper(rng)],
-      ['runStringFakeWrapper', (rng: RNG) => this.runStringFakeWrapper(rng)],
-      ['runNumFakeWrapper',    (rng: RNG) => this.runNumFakeWrapper(rng)],
+    const fns: [string, number, (rng: RNG) => void][] = [
+      ['runStringAlias',       TEST_ITERATIONS, (rng: RNG) => this.runStringAlias(rng, GROW_ITEMS)],
+      ['runNumAlias',          TEST_ITERATIONS, (rng: RNG) => this.runNumAlias(rng, GROW_ITEMS)],
+      ['runStringWrapper',     TEST_ITERATIONS, (rng: RNG) => this.runStringWrapper(rng, GROW_ITEMS)],
+      ['runNumWrapper',        TEST_ITERATIONS, (rng: RNG) => this.runNumWrapper(rng, GROW_ITEMS)],
+      ['runStringFakeWrapper', TEST_ITERATIONS, (rng: RNG) => this.runStringFakeWrapper(rng, GROW_ITEMS)],
+      ['runNumFakeWrapper',    TEST_ITERATIONS, (rng: RNG) => this.runNumFakeWrapper(rng, GROW_ITEMS)],
+
+      // Memory pressure versions of these
+      ['runStringAliasMem',       TEST_ITERATIONS_MEM, (rng: RNG) => this.runStringAlias(rng, GROW_ITEMS_MEM)],
+      ['runNumAliasMem',          TEST_ITERATIONS_MEM, (rng: RNG) => this.runNumAlias(rng, GROW_ITEMS_MEM)],
+      ['runStringWrapperMem',     TEST_ITERATIONS_MEM, (rng: RNG) => this.runStringWrapper(rng, GROW_ITEMS_MEM)],
+      ['runNumWrapperMem',        TEST_ITERATIONS_MEM, (rng: RNG) => this.runNumWrapper(rng, GROW_ITEMS_MEM)],
+      ['runStringFakeWrapperMem', TEST_ITERATIONS_MEM, (rng: RNG) => this.runStringFakeWrapper(rng, GROW_ITEMS_MEM)],
+      ['runNumFakeWrapperMem',    TEST_ITERATIONS_MEM, (rng: RNG) => this.runNumFakeWrapper(rng, GROW_ITEMS_MEM)],
     ];
 
     const env = getEnvironment();
     csvlog(`environment`,`testName`,`iterations`,`pass`,`durationMs`);
     for (let i = 0; i < PASSES; i++) {
       const rng = new RNG();  // untouched seed, so that each pass is apples-to-apples amongst the algos
-      for (const [name, fn] of shuffle(fns)) {
+      for (const [name, iterations, fn] of shuffle(fns)) {
         const start = Date.now();
         const iterationRng = rng.clone();
-        for (let j = 0; j < TEST_ITERATIONS; j++) {
+        for (let j = 0; j < iterations; j++) {
           fn(iterationRng);
         }
         const end = Date.now();
-        csvlog(`"${env}"`,`"${name}"`,`${GROW_ITEMS}`,`${i}`,`${end - start}`);
+        csvlog(`"${env}"`,`"${name}"`,`${iterations}`,`${i}`,`${end - start}`);
         await sleep(500);
       }
     }
   }
 
-  async runStringAlias(rng: RNG): Promise<void> {
+  async runStringAlias(rng: RNG, growItems: number): Promise<void> {
     const strs = this.someStrings;
     const strns = this.someStrings.length;
     const results: StringAlias[] = [];
 
-    const items = Math.ceil(GROW_ITEMS / 2);
+    const items = Math.ceil(growItems / 2);
     for (let i = 0; i < items; i++) {
       const s1 = strs[rng.nextUnder(strns)];
       const s2 = strs[rng.nextUnder(strns)];
@@ -127,12 +138,12 @@ class Main {
     }
   }
 
-  async runNumAlias(rng: RNG): Promise<void> {
+  async runNumAlias(rng: RNG, growItems: number): Promise<void> {
     const nums = this.someNumbers;
     const numns = this.someNumbers.length;
     const results: NumAlias[] = [];
 
-    const items = Math.ceil(GROW_ITEMS / 2);
+    const items = Math.ceil(growItems / 2);
     for (let i = 0; i < items; i++) {
       const s1 = nums[rng.nextUnder(numns)];
       const s2 = nums[rng.nextUnder(numns)];
@@ -148,12 +159,12 @@ class Main {
     }
   }
 
-  async runStringWrapper(rng: RNG): Promise<void> {
+  async runStringWrapper(rng: RNG, growItems: number): Promise<void> {
     const strs = this.someStrings;
     const strns = this.someStrings.length;
     const results: StringWrapper[] = [];
 
-    const items = Math.ceil(GROW_ITEMS / 2);
+    const items = Math.ceil(growItems / 2);
     for (let i = 0; i < items; i++) {
       const s1 = new StringWrapper(strs[rng.nextUnder(strns)]);
       const s2 = new StringWrapper(strs[rng.nextUnder(strns)]);
@@ -169,12 +180,12 @@ class Main {
     }
   }
 
-  async runNumWrapper(rng: RNG): Promise<void> {
+  async runNumWrapper(rng: RNG, growItems: number): Promise<void> {
     const nums = this.someNumbers;
     const numns = this.someNumbers.length;
     const results: NumberWrapper[] = [];
 
-    const items = Math.ceil(GROW_ITEMS / 2);
+    const items = Math.ceil(growItems / 2);
     for (let i = 0; i < items; i++) {
       const s1 = new NumberWrapper(nums[rng.nextUnder(numns)]);
       const s2 = new NumberWrapper(nums[rng.nextUnder(numns)]);
@@ -190,12 +201,12 @@ class Main {
     }
   }
 
-  async runStringFakeWrapper(rng: RNG): Promise<void> {
+  async runStringFakeWrapper(rng: RNG, growItems: number): Promise<void> {
     const strs = this.someStrings;
     const strns = this.someStrings.length;
     const results: StringFakeWrapper[] = [];
 
-    const items = Math.ceil(GROW_ITEMS / 2);
+    const items = Math.ceil(growItems / 2);
     for (let i = 0; i < items; i++) {
       const s1 = StringFakeWrapper.from(strs[rng.nextUnder(strns)]);
       const s2 = StringFakeWrapper.from(strs[rng.nextUnder(strns)]);
@@ -211,12 +222,12 @@ class Main {
     }
   }
 
-  async runNumFakeWrapper(rng: RNG): Promise<void> {
+  async runNumFakeWrapper(rng: RNG, growItems: number): Promise<void> {
     const nums = this.someNumbers;
     const numns = this.someNumbers.length;
     const results: NumberFakeWrapper[] = [];
 
-    const items = Math.ceil(GROW_ITEMS / 2);
+    const items = Math.ceil(growItems / 2);
     for (let i = 0; i < items; i++) {
       const s1 = NumberFakeWrapper.from(nums[rng.nextUnder(numns)]);
       const s2 = NumberFakeWrapper.from(nums[rng.nextUnder(numns)]);
