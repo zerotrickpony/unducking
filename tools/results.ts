@@ -3,7 +3,7 @@ import {parse} from 'csv-parse';
 
 const PASSES = 30;
 const T_THRESHOLD = 3.659;  // 99.9% two sided T value at 29 degrees of freedom
-const P_SIMULATIONS = 100000;
+const P_SIMULATIONS = 100000;  // computed P-value by randomizing trial results
 
 interface RawResult {
   environment: string;
@@ -29,7 +29,7 @@ interface CompareStats {
   environment: string;
   basistest: string;  // baseline technique, e.g. "runNumAlias"
   comparetest: string;  // comparison technique, e.g. "runNumWrapper"
-  samples: number;  // always 20
+  samples: number;  // always 30
   basismean: number;  // average milliseconds per test run of runBlahAlias
   testmean: number;  // average milliseconds per test run of runBlahWrapper
   basisstddev: number;  // stddev of basismean
@@ -68,15 +68,86 @@ async function main(argv: string[]) {
   gatherComparisons(comparisons, results, 'runStringAlias', 'runStringWrapper');
   gatherComparisons(comparisons, results, 'runNumAlias', 'runNumFakeWrapper');
   gatherComparisons(comparisons, results, 'runNumAlias', 'runNumWrapper');
+  gatherComparisons(comparisons, results, 'runStringAliasMem', 'runStringFakeWrapperMem');
+  gatherComparisons(comparisons, results, 'runStringAliasMem', 'runStringWrapperMem');
+  gatherComparisons(comparisons, results, 'runNumAliasMem', 'runNumFakeWrapperMem');
+  gatherComparisons(comparisons, results, 'runNumAliasMem', 'runNumWrapperMem');
 
   // Statistical summaries of each trial, where we compare means and determine statistical significance
   const stats = summarize(comparisons);
+
+  // Write out stats for a sheets stack bar format
+  writeFileSync('./web/lib/results.csv', toStatsCsv(stats));
 
   writeFileSync('./web/lib/resultsdata.js', `
     const ALL_COMPARISONS = ${JSON.stringify(comparisons, null, 2)};
     const ALL_RESULTS = ${JSON.stringify(results, null, 2)};
     const ALL_STATS = ${JSON.stringify(stats, null, 2)};
   `);
+}
+
+// Converts the stats to CSV for Sheets to chart
+function toStatsCsv(stats: {[key: string]: CompareStats[]}): string {
+  // Index the stats into unique map
+  const testNames = new Set<string>();
+  const statsIndex = new Map<string, Map<string, CompareStats>>();
+  for (const env in stats) {
+    const m = new Map<string, CompareStats>();
+    statsIndex.set(env, m);
+    for (const stat of stats[env]) {
+      if (m.has(stat.comparetest)) {
+        throw new Error(`Surprising duplicate result`);
+      }
+      m.set(stat.comparetest, stat);
+      testNames.add(stat.comparetest);
+    }
+  }
+
+  // The CSV is rows of tests and cols of environments
+  const envs = [...statsIndex.keys()];
+  const matrix: (string|number)[][] = [['technique', ...envs]];
+  for (const testName of testNames) {
+    const row: (string|number)[] = [testName];
+    for (const env of envs) {
+      const stat = statsIndex.get(env)?.get(testName);
+      if (!stat) {
+        throw new Error(`Surprising missing stat: ${env},${testName}`);
+      }
+      row.push(stat.testmean / stat.basismean);
+    }
+    matrix.push(row);
+  }
+
+  return toCsv(matrix);
+}
+
+// Outputs a string representation of the given strings.
+function toCsv(matrix: (string|number)[][]): string {
+  let result = '';
+  let len: number|undefined;
+  for (const row of matrix) {
+    if (len === undefined) {
+      len = row.length;
+    } else if (len != row.length) {
+      throw new Error(`Surprising uneven CSV matrix: ${row.length} items`);
+    }
+
+    let first = true;
+    for (const item of row) {
+      if (first) {
+        first = false;
+      } else {
+        result += ',';
+      }
+      if (typeof(item) === 'string') {
+        result += `"${item.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`;
+      } else if (typeof(item) === 'number') {
+        result += `${item}`;
+      }
+    }
+    result += '\n';
+  }
+  return result;
 }
 
 function asum(list: number[]): number {
