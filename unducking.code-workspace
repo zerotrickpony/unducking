@@ -3,5 +3,15 @@
 		{
 			"path": "."
 		}
-	]
+	],
+  "settings": {
+    "emeraldwalk.runonsave": {
+      "commands": [
+        {
+          "match": "docs/.*",
+          "cmd": "source ~/.bash_profile && cd docs && zola build"
+        }
+     ]
+    }
+  }
 }
