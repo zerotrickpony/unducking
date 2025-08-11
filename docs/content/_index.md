@@ -43,7 +43,7 @@ const dirpath = parseUserInput();
 const stats = recursiveScan(dirpath);
 ```
 
-...unfortunately `recursiveScan` is repeatedly validating that the path is well formed.
+Unfortunately `recursiveScan` is repeatedly validating that the path is well formed.
 This is wasted effort because I know that the user input was already sanitized, and join()
 on a known directory will always produce a valid directory path.
 
@@ -76,10 +76,10 @@ const dirpath: <span class=codechange>DirPath</span> = parseUserInput();
 const stats = recursiveScan(dirpath);
 </code></pre>
 
-...when recursiveScan is passed a valid `DirPath`, it should now be safe to omit the bounds
+When recursiveScan is passed a valid `DirPath`, it should now be safe to omit the bounds
 checking on every recursion. **How should DirPath be defined?**
 
-## Primitive type aliases
+## First approach: Primitive type aliases
 
 Naively, we could define `DirPath` simply as an alias to Typescript's primitive `string` type.
 That's an obvious intended use of Typescript's alias feature, it avoids runtime performance
@@ -96,7 +96,7 @@ type DirPath = string;
 recursiveScan(`invalid nonsense`, stats);
 ```
 
-...any string will coerce to a `DirPath`, and we will not get the bounds checking
+With this approach, any string will coerce to a `DirPath`, and we will not get the bounds checking
 assurance from the Typescript type checker. We could certainly assume
 that the DirPath alias is a sufficient signal to future maintainers that a constrained
 value is expected, but there is no enforcement. It is merely documentation, prone to
@@ -108,13 +108,13 @@ the more descriptive name:
 
 <img src="vscode1.png" title="VSCode shows the type of DirPath variables as string" />
 
-...during a recent refactor of this code, this behavior of VSCode kept inducing me to re-check the
+During a recent refactor of this code, this behavior of VSCode kept inducing me to re-check the
 definitions of my interfaces and worry that I had forgotten to fix the types of the fields. A bit annoying.
 
 
 ## Improvement A: Wrapper objects
 
-We could instead define DirPath as a full fledged class, wrapping the string path data
+We could instead define `DirPath` as a full fledged class, wrapping the string path data
 and perhaps also tracking some useful additional properties. This is a perfectly reasonable approach
 and is used by patterns like [TypeID](https://github.com/jetify-com/typeid-js/tree/main).
 
@@ -172,7 +172,7 @@ const stats = recursiveScan(dirpath);
 recursiveScan(<span class=codedeletion>`invalid nonsense`</span>, stats);
 </code></pre>
 
-...in this approach, Typescript will enforce agreement with the `DirPath` class
+In this approach, Typescript will enforce agreement with the `DirPath` class
 throughout the code, and we can be assured that the bounds checking done at
 construction time need not be repeated in subsequent usage sites.
 
@@ -224,7 +224,7 @@ class DirPath {
 }
 ```
 
-...in this approach, we abuse Typescript's coercion overrides to ask certain strings to be
+In this approach, we abuse Typescript's coercion overrides to ask certain strings to be
 treated like DirPath classes during typechecking. Within the implementation of DirPath, we have
 various naughty coercions through `as unknown` so that we can appease Typescript's type checker,
 but no wrapper objects are ever actually allocated at runtime.
@@ -279,8 +279,10 @@ Each bar represents the measured slowdown of that approach as compared to using 
 
 <img src="chart.png" title="Bar chart illustrating the performance impacts of the above approaches" />
 
-...here a value of "1.0" indicates that the approach had no significant
-difference in its benchmark speed vs. the same code run on a primitive type. Both `string` and `number`
+<div class=footnote>* - No statistically significant difference from baseline</div>
+
+Here a value of "1.0" indicates that the approach had no difference in its benchmark speed vs.
+the same code run on a primitive type. Both `string` and `number`
 primitives were compared to these two wrapper techniques. Wrapper objects imposed a performance
 penalty of between 1.2x - 5.0x or more, depending on the environment and workload.
 
@@ -297,7 +299,7 @@ tested Firefox to see if Spidermonkey would perform differently from V8 on the s
 
 ## Future Work
 
-This "static wrappers" pattern has good runtime performance, but is fairly clumsy. Disadvantages like:
+This "static wrappers" pattern has good runtime performance, but is fairly clumsy. It has disadvantages like:
 - **Dangerous internals:** Within the implementation of the wrapper and any needed helpers, the author must employ
   error-prone `as unknown` coercions which effectively turn off the type checker.
 - **Awkward usage:** Throughout the application code, interactions with the "objects" are mitigated through
@@ -348,13 +350,15 @@ member method syntax, but still without incurring allocator costs:
 }
 </code></pre>
 
-(Since Typescript seems to prefer to be in the business of typechecking rather than
+Since Typescript seems to prefer to be in the business of typechecking rather than
 compiling, this feature may never be offered in the core language. A
 code generator or preprocessor could potentially serve this purpose, but if it's
-not in the widely known language then it fails to avoid the "astonishment" problem.)
+not in the widely known language then it fails to avoid the "astonishment" problem.
 
-[Let me know](https://messydesk.social/@zerotrickpony) how you approached this problem in your projects! I'm always interested
-in feedback.
+It's also worth noting that other languages like Rust with more aggressive compilers may already have effective solutions to this problem, because encapsulated primitive types can often be flattened away during optimization.
+
+Anyway, [let me know](https://messydesk.social/@zerotrickpony) if you had this need in your Typescript projects, and what you did about it! I'm always interested
+in learning more.
 
 
 ## References
