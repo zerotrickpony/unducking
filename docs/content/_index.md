@@ -4,6 +4,7 @@ weight = 1
 +++
 
 # Un-*ucking Typescript primitive type aliases
+*2025 August 10 - [@zerotrickpony@messydesk.social](https://messydesk.social/@zerotrickpony)*
 
 Typescript's duck-typing philosophy has many advantages, but sometimes it permits
 coersions that I'd rather have prevented at compile time. This is especially true
@@ -21,13 +22,13 @@ performance of an already-slow disk scanning tool. Something like:
 ```ts
 function parseUserInput(): string {
   const str = getSomeInput();
-  checkDirExists(str);
-  checkIsValidPath(path);
+  checkValidDir(str);
   return str;
 }
 
-function recursiveScan(path: string, stats: StatsAccumulator): void {
-  checkIsValidPath(path);
+function recursiveScan(path: string, stats?: Counters): Counters {
+  checkValidDir(path);
+  stats = stats ?? new Counters();
   for (const item of listdir(path)) {
     if (item.isDirectory()) {
       recursiveScan(join(path, item.name()), stats);
@@ -35,7 +36,11 @@ function recursiveScan(path: string, stats: StatsAccumulator): void {
       stats.countFile(item);
     }
   }
+  return stats;
 }
+
+const dirpath = parseUserInput();
+const stats = recursiveScan(dirpath);
 ```
 
 ...unfortunately `recursiveScan` is repeatedly validating that the path is well formed.
@@ -45,34 +50,36 @@ on a known directory will always produce a valid directory path.
 I want a Typescript type to encapsulate the idea of this validation being done already, so that
 downstream code can be assured that the file paths are valid at compile time. Maybe something like:
 
-```ts
-type DirPath = // ... ????
+<pre class="z-code">
+<code><span class=codechange>type DirPath = </span><span class=z-comment>// ... ????</span>
 
-function parseUserInput(): DirPath {
+function parseUserInput(): <span class=codechange>DirPath</span> {
   const str = getSomeInput();
-  checkDirExists(str);
-  checkIsValidPath(path);
-  return makeDirPathFrom(str);
+  checkValidDir(str);
+  return <span class=codechange>makeDirPathSomehow(str);</span>
 }
 
-function recursiveScan(path: DirPath, stats: StatsAccumulator): void {
-  for (const item of listdir(path)) {
+function recursiveScan(path: <span class=codechange>DirPath</span>, stats?: Counters): Counters {
+  <span class=codedeletion>// checkValidDir(path);</span>  <span class=z-comment>// don't need this anymore</span>
+  stats = stats ?? new Counters();
+  for (const item of listdir(path<span class=codechange>.toString()</span>)) {
     if (item.isDirectory()) {
-      recursiveScan(join(path, item.name()), stats);
+      recursiveScan(join(path<span class=codechange>.toString()</span>, item.name()), stats);
     } else {
       stats.countFile(item);
     }
   }
+  return stats;
 }
 
-const dirpath = parseUserInput();
-const data = recursiveScan(dirpath);
-```
+const dirpath: <span class=codechange>DirPath</span> = parseUserInput();
+const stats = recursiveScan(dirpath);
+</code></pre>
 
 ...when recursiveScan is passed a valid `DirPath`, it should now be safe to omit the bounds
 checking on every recursion. **How should DirPath be defined?**
 
-## Option A: Primitive type alias
+## Primitive type aliases
 
 Naively, we could define `DirPath` simply as an alias to Typescript's primitive `string` type.
 That's an obvious intended use of Typescript's alias feature, it avoids runtime performance
@@ -82,12 +89,18 @@ file path operations like `join()`.
 But there is a snag:
 
 ```ts
-type DirPath = string;  // if DirPath is just an alias for string...
-recursiveScan(`invalid nonsense`, stats);  // ...then this is NOT a compile error
+// if DirPath is just an alias for string...
+type DirPath = string;
+
+// ...then this is NOT a compile error
+recursiveScan(`invalid nonsense`, stats);
 ```
 
 ...any string will coerce to a `DirPath`, and we will not get the bounds checking
-assurance we were hoping for from the Typescript type checker.
+assurance from the Typescript type checker. We could certainly assume
+that the DirPath alias is a sufficient signal to future maintainers that a constrained
+value is expected, but there is no enforcement. It is merely documentation, prone to
+mistakes.
 
 And as a secondary annoyance, type analysis tooling like VSCode will show any variables and
 properties of alias DirPath as `"string"` in various hover cards and tooltips, instead of using
@@ -99,7 +112,7 @@ the more descriptive name:
 definitions of my interfaces and worry that I had forgotten to fix the types of the fields. A bit annoying.
 
 
-## Option B: Wrapper objects
+## Improvement A: Wrapper objects
 
 We could instead define DirPath as a full fledged class, wrapping the string path data
 and perhaps also tracking some useful additional properties. This is a perfectly reasonable approach
@@ -108,34 +121,56 @@ and is used by patterns like [TypeID](https://github.com/jetify-com/typeid-js/tr
 Here's how that could look:
 
 ```ts
-// A wrapper object around the path string, with well-formed-ness enforcement
+// A wrapper object which encapsulates validity checking
 class DirPath {
   // Internal state
-  private readonly path: string;
-  constructor(s) { this.path = s;}
+  constructor(private readonly path: string) {}
 
   // Use this factory method when parsing untrusted strings into paths
-  static from(s): DirPath {doBoundsChecking(s); return new DirPath(s);};
+  static parse(s): DirPath {
+    checkValidDir(s);
+    return new DirPath(s);
+  };
 
   // Wrapper methods which implement various path needs
-  join(s): DirPath { return new DirPath(node_path.join(this.path, s)); }
+  join(s): DirPath {
+    return new DirPath(node_path.join(this.path, s));
+  }
+
+  // etc...
   exists(): boolean { ... }
   list() { ... }
 }
+```
 
-// Now we can write application code that trusts that DirPaths are well formed
-function recursiveScan(path: DirPath, stats: StatsAccumulator): void {
-  for (const item of path.list()) {
+And now we can write application code that trusts that DirPaths are well-formed and already
+bounds checked by the Typescript type checker:
+
+<pre class="z-code">
+<code>function parseUserInput(): <span class=codechange>DirPath</span> {
+  const str = getSomeInput();
+  return <span class=codechange>DirPath.parse(str);</span>
+}
+
+function recursiveScan(path: <span class=codechange>DirPath</span>, stats?: Counters): Counters {
+  stats = stats ?? new Counters();
+  for (const item of path<span class=codechange>.list()</span>) {
     if (item.isDirectory()) {
-      recursiveScan(path.join(item.name()), stats);
+      recursiveScan(path<span class=codechange>.join(item.name())</span>, stats);
     } else {
       stats.countFile(item);
     }
   }
+  return stats;
 }
 
-recursiveScan(`invalid nonsense`, stats);  // misuses are nicely stopped by the compiler
-```
+<span class=z-comment>// Validity checking is now encapsulated by DirPath</span>
+const dirpath: <span class=codechange>DirPath</span> = parseUserInput();
+const stats = recursiveScan(dirpath);
+
+<span class=z-comment>// and invalid strings give a nice typecheck error</span>
+recursiveScan(<span class=codedeletion>`invalid nonsense`</span>, stats);
+</code></pre>
 
 ...in this approach, Typescript will enforce agreement with the `DirPath` class
 throughout the code, and we can be assured that the bounds checking done at
@@ -151,69 +186,90 @@ referenced throughout the code.
 Don't worry about the runtime performance cost of wrapper objects.
 
 Well... what if we **do** want to worry about performance? I have some benchmark results on this
-below, but here is an idea for a combination of the two approaches:
+below, but here is an idea:
 
-## Option C: Static wrappers
+## Improvement B: Static wrappers
 
 Here's an approach that tsc will typecheck like a wrapper object, but has (almost) no runtime overhead:
 
 ```ts
-// This type looks like a wrapper object during typechecking, but it's actually a primitive:
+// This type looks like a wrapper object during typechecking,
+// but it's actually a primitive:
 class DirPath {
   constructor(s) { throw new Error(`static wrapper is never instantiated`); }
 
-  static from(s: string): DirPath {
-    doBoundsChecking(s);  // ensure this string meets our DirPath semantics
+  // A validity enforcing factory method...
+  static parse(s): DirPath {
+    checkValidDir(s);
 
-    // This naughty bit of coersion will cause tsc to follow our path strings
-    // through the codebase as a class, and will not permit undesired accidental
-    // coercions to string.
+    // This naughty bit of coersion will cause tsc to follow our path
+    // strings through the codebase as a class, and will not permit
+    // undesired accidental coercions to string.
     return s as unknown as DirPath;
   }
 
+  // Helper methods are static, rather than members
   static join(p: DirPath, s: string): DirPath {
-    // The implementation of this wrapper can simply treat these things as strings.
-    // The returned type is checked as a DirPath but avoids allocating a wrapper object.
-    // The wrapper implementations have these gross coercions inside them, but the rest
-    // of the application's code will be clean of coercion.
+    // The implementation of this wrapper can simply treat these things
+    // as strings. The returned type is checked as a DirPath but avoids
+    // allocating a wrapper object. The wrapper implementations have
+    // these gross coercions inside them, but the rest of the application's
+    // code will be clean of coercion.
     return node_path.join(p as string, s) as unknown as DirPath;
   }
 
-  static exists(p) { ... }
-  static list(p) { ... }
+  // ...more helpers, etc...
+  static exists(p: DirPath) { ... }
+  static list(p: DirPath) { ... }
 }
-
-// Application code works with DirPaths via static wrappers.
-function recursiveScan(path: DirPath, stats: StatsAccumulator): void {
-  for (const item of DirPath.list(path)) {
-    if (item.isDirectory()) {
-      recursiveScan(DirPath.join(path, item.name()), stats);
-    } else {
-      stats.countFile(item);
-    }
-  }
-}
-
-recursiveScan(`invalid nonsense`, stats);  // misuses are caught by the compiler
-recursiveScan(DirPath.from('/checked/path'), stats);  // avoids allocating wrapper object
 ```
 
 ...in this approach, we abuse Typescript's coercion overrides to ask certain strings to be
 treated like DirPath classes during typechecking. Within the implementation of DirPath, we have
 various naughty coercions through `as unknown` so that we can appease Typescript's type checker,
-but without no wrapper objects are ever actually allocated at runtime.
+but no wrapper objects are ever actually allocated at runtime.
 
-(We still need to have some degree of runtime overhead to call wrapper functions like
+Application code looks nearly the same for a static wrapper as in the "wrapper objects"
+approach above, except that the helpers are static methods rather than member
+methods. Like:
+
+<pre class="z-code">
+<code>function parseUserInput(): <span class=codechange>DirPath</span> {
+  const str = getSomeInput();
+  return <span class=codechange>DirPath.parse(str);</span>
+}
+
+function recursiveScan(path: <span class=codechange>DirPath</span>, stats?: Counters): Counters {
+  stats = stats ?? new Counters();
+  for (const item of <span class=codechange>DirPath.list(path)</span>) {
+    if (item.isDirectory()) {
+      recursiveScan(<span class=codechange>DirPath.join(item.name())</span>, stats);
+    } else {
+      stats.countFile(item);
+    }
+  }
+  return stats;
+}
+
+<span class=z-comment>// Validity enforcement works the same as wrapper objects</span>
+const dirpath: <span class=codechange>DirPath</span> = parseUserInput();
+const stats = recursiveScan(dirpath);
+
+<span class=z-comment>// ...as do typecheck errors</span>
+recursiveScan(<span class=codedeletion>`invalid nonsense`</span>, stats);
+</code></pre>
+
+We still need to have some degree of runtime overhead to call wrapper functions like
 `DirPath.join()`, so this technique does not entirely avoid runtime overhead.
-But runtime **allocation** overhead **is** entirely avoided.)
+But runtime **allocation** overhead **is** entirely avoided.
 
 
 ## Runtime Performance
 
 TLDR:
-- Wrapper Objects (Option B) cause a **significiant slowdown at runtime** as
+- Wrapper Objects (Option A) cause a **significiant slowdown at runtime** as
 compared to using primitive types like `string` or `number`: 1.2X to 5X slowdown or more, depending on environment. See below.
-- Static Wrappers (Option C) have **no statistically significant difference in performance** vs using primitive types.
+- Static Wrappers (Option B) have **no statistically significant difference in performance** vs using primitive types.
 
 More details:
 
@@ -254,45 +310,64 @@ type expression somewhere between an alias and a class, which typechecks like a 
 at runtime like a primitive. Something like:
 
 ```ts
-// Magic class expression which makes a primitive at runtime, but prevents implicit widening
+// Magic class expression which makes a primitive at runtime,
+// but prevents implicit widening
 class DirPath = NarrowedPrimitive<string> {
   // No object members or constructor permitted
 
-  // The author can supply a factory method which encapsulates needed coercions
+  // A factory method which encapsulates needed coercions
   static from(s): DirPath {
-    doBoundsChecking(s);
+    checkValidDir(s);
     return s as DirPath;
   }
 
-  // member methods can access the primitive itself via "this"
-  join(s): DirPath { return node_path.join(this, s) as DirPath; }  // widening to string ok
+  // Member methods access the primitive via "this"
+  join(s): DirPath {
+    // widening to string is permitted
+    return node_path.join(this, s) as DirPath;
+  }
   exists(): boolean { ... }
   list() { ... }
 }
+```
 
-// Now we can write application code that trusts that DirPaths are well formed
-function recursiveScan(path: DirPath, stats: StatsAccumulator): void {
-  for (const item of path.list()) {
+If this approach were possible, it would permit application code to use helpers with a more natural
+member method syntax, but still without incurring allocator costs:
+
+<pre class="z-code">
+<code>function recursiveScan(path: <span class=codechange>DirPath</span>, stats?: Counters): Counters {
+  stats = stats ?? new Counters();
+  for (const item of path<span class=codechange>.list()</span>) {
     if (item.isDirectory()) {
-      recursiveScan(path.join(item.name()), stats);
+      recursiveScan(path<span class=codechange>.join(item.name())</span>, stats);
     } else {
       stats.countFile(item);
     }
   }
+  return stats;
 }
+</code></pre>
 
-recursiveScan(`some nonsense`);  // compile error stops implicit narrowing to string
-recursiveScan(DirPath.from(`/checked/path`));  // factory method mitigates narrowing
-```
-
-(Since Typescript seems to be moving more in the direction of typechecking than
-compiling, this feature will probably not be offered in the core language. A
+(Since Typescript seems to prefer to be in the business of typechecking rather than
+compiling, this feature may never be offered in the core language. A
 code generator or preprocessor could potentially serve this purpose, but if it's
 not in the widely known language then it fails to avoid the "astonishment" problem.)
 
-[Let me know](mailto:rus@zerotrickpony.com) how you approached this problem in your projects! I'm always interested
+[Let me know](https://messydesk.social/@zerotrickpony) how you approached this problem in your projects! I'm always interested
 in feedback.
 
 
-## Appendix
+## References
+
+- **Techniques**
+  - [Static wrapper example (source code)](https://github.com/zerotrickpony/unducking/blob/main/src/fspath.ts)
+  - [Object wrapper example (TypeID project)](https://github.com/jetify-com/typeid-js/tree/main)
+
+- **Performance experiments**
+  - [Table of summary statistics](./results.html)
+  - [All experimental data and statistics (JSON)](./results.json)
+  - [Benchmarks (source code)](https://github.com/zerotrickpony/unducking/blob/main/src/main.ts)
+  - [Summary statistics calculations (source code)](https://github.com/zerotrickpony/unducking/blob/main/tools/results.ts)
+  - [How to compute P-value by simulation (YouTube)](https://www.youtube.com/watch?v=jLFeqQxGtOc) (credit: Khan Academy)
+  - [How to compute T-test (YouTube)](https://www.youtube.com/watch?v=D2sMsmL0ScQ) (credit: Khan Academy)
 
