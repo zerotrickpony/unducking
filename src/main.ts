@@ -23,10 +23,7 @@ type StringAlias = string;
 type NumAlias = number;
 
 class StringWrapper {
-  private readonly data: string;
-  constructor(s: string) {
-    this.data = s;
-  }
+  constructor(private readonly data: string) {}
 
   static concat(s1: StringWrapper, s2: StringWrapper): StringWrapper {
     return new StringWrapper(s1.data + s2.data);
@@ -48,10 +45,7 @@ class StringFakeWrapper {
 }
 
 class NumberWrapper {
-  private readonly data: number;
-  constructor(n: number) {
-    this.data = n;
-  }
+  constructor(private readonly data: number) {}
 
   static plustimes(n1: NumberWrapper, n2: NumberWrapper): NumberWrapper {
     const s1 = n1.data;
