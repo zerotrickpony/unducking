@@ -1,0 +1,117 @@
+/* goodness me. https://piccalil.li/blog/a-more-modern-css-reset/ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  -moz-text-size-adjust: none;
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
+  font-size-adjust: ex-height 0.5;  /* https://matklad.github.io/2025/07/16/font-size-adjust.html */
+}
+
+body {
+  margin: 0;
+}
+
+input, button, textarea, select {
+  font: inherit;
+}
+
+a { text-decoration: none; }
+
+a img, :link img, :visited img { border: 0; }
+
+
+body {
+  background: #eee;
+  color: #000;
+  margin: 0em;
+  font-family: Helvetica, Arial, Sans-Serif;
+  font-size: 16pt;
+}
+
+h1 {
+  font-size: 150%;
+}
+
+h2 {
+  margin-top: 3ex;
+  font-size: 125%;
+}
+
+h3 {
+  margin-top: 1ex;
+  font-size: 110%;
+}
+.page {
+  max-width: 800px;
+  background: #fff;
+  color: #000;
+  padding: 1em;
+  margin: 0em 0em 0em calc(max(0px, 50% - 400px));
+}
+
+.page h1 {
+  margin-bottom: 0px;
+}
+
+IMG {
+  width: 100%;
+  height: auto;
+}
+
+PRE {
+  width: 100%;
+  overflow-x: scroll;
+  font-size: 13pt;
+  padding: 2pt;
+}
+
+PRE.z-code {
+  color: #66a;
+  background-color: #eee;
+}
+
+PRE.z-code .z-comment {
+  color: #999;
+}
+
+PRE.z-code .z-type {
+  color: #77f;
+}
+
+PRE.z-code .z-name {
+  color: #080;
+}
+
+PRE.z-code .z-definition {
+  font-weight: bold;
+}
+
+PRE.z-code SPAN.codechange {
+  color: #c2c;
+  font-weight: bold;
+}
+
+PRE.z-code SPAN.codedeletion {
+  color: #f2a;
+  text-decoration: line-through;
+}
+
+PRE.z-code SPAN.z-error {
+  color: #f44;
+}
+
+@media screen and (max-width: 850px) {
+  .page {
+    max-width: none;
+    padding: 1.5vw;
+    margin: 0em;
+  }
+
+  PRE {
+    font-size: 10pt;
+  }
+}

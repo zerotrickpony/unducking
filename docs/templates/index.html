@@ -1,39 +1,18 @@
 <!DOCTYPE html>
-<html lang="en">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en-us">
 
 <head>
-  <meta charset="utf-8">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+  <link rel="stylesheet" href="./styles.css" type="text/css" />
+  <link rel="me" href="https://messydesk.social/@zerotrickpony" />
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ section.title }}</title>
-  <link rel="shortcut icon" type="image/png" href="/favicon.png"/>
-  <style>
-    BODY {
-      font-family: Helvetica, Arial, Sans-Serif;
-
-      max-width: 800px;
-    }
-
-    H2 {
-      margin-top: 40px;
-    }
-
-    pre.language-ts {
-      max-width: 750px;
-      margin-left: 25px;
-      margin-right: 25px;
-      padding: 10px;
-    }
-
-    IMG {
-      max-width: 750px;
-      margin-left: 25px;
-      margin-right: 25px;
-      height: auto;
-    }
-  </style>
 </head>
 
 <body>
-{% block content %}  {{ section.content | safe }} {% endblock content %}
+  <div class=page>
+  {% block content %}  {{ section.content | safe }} {% endblock content %}
+  </div>
 </body>
 
 </html>
